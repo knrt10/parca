@@ -62,7 +62,7 @@ check-license:
 
 .PHONY: go/test
 go/test:
-	 go test -v `go list ./...`
+	go test -v `go list ./...`
 
 VCR_FILES ?= $(shell find ./pkg/*/testdata -name "fixtures.yaml")
 
@@ -107,11 +107,11 @@ proto/google/pprof/profile.proto:
 
 .PHONY: container-dev
 container-dev:
-    podman build --timestamp 0 --layers --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) -t $(OUT_DOCKER):$(VERSION) .
+  podman build --timestamp 0 --layers --build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) -t $(OUT_DOCKER):$(VERSION) .
 
 .PHONY: container
 container:
-	 ./scripts/make-containers.sh $(VERSION) $(COMMIT) $(OUT_DOCKER):$(VERSION)
+	./scripts/make-containers.sh $(VERSION) $(COMMIT) $(OUT_DOCKER):$(VERSION)
 
 .PHONY: push-container
 push-container:
