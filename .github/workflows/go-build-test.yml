@@ -15,30 +15,91 @@ on:
       - 'go.sum'
 
 jobs:
-  build-and-test:
+  build-and-test-multi-arch:
     runs-on: ubuntu-latest
+    name: Build on ${{ matrix.arch }}
+    # Run steps on a matrix of 2 arch.
+    strategy:
+      matrix:
+        arch:
+          - x64
+          - aarch64
     steps:
-      - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: '1.18'
+        check-latest: true
 
-      - name: Set up Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: '1.18'
-          check-latest: true
+    - name: Build UI
+      if: ${{ matrix.arch == 'x64' }}
+      run: |
+        make ui/build
 
-      - name: Build UI
-        run: make ui/build
+    - name: Test
+      if: ${{ matrix.arch == 'x64' }}
+      run: |
+        make go/test
 
-      - name: Test
-        run: make go/test
+    - name: Build
+      if: ${{ matrix.arch == 'x64' }}
+      run: |
+        make build
 
-      - name: Build
-        run: make build
+    - name: Archive generatated artifacts
+      if: ${{ matrix.arch == 'x64' }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: parca-bin
+        if-no-files-found: error
+        path: |
+          bin
 
-      - name: Archive generatated artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: parca-bin
-          if-no-files-found: error
-          path: |
-            bin
+    - name: 'Build and Test on ${{ matrix.arch }}'
+      if: ${{ matrix.arch != 'x64' }}
+      run: |
+        export RUNNER_ALLOW_RUNASROOT="1"
+        ARCH=arm64
+
+        # Install QEMU.
+        sudo apt-get install qemu binfmt-support qemu-user-static
+        docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+        # Run ARM based ubuntu image.
+        docker run --rm -t -v `pwd`:/parca arm64v8/ubuntu /bin/bash -c \
+        "uname -m &&\
+        cd parca &&\
+        apt-get update -y -q &&\
+        apt-get upgrade -y -q &&\
+        apt-get install -y -q wget make git build-essential &&\
+
+        # Install Golang.
+        wget https://dl.google.com/go/go1.18.2.linux-$ARCH.tar.gz &&\
+        tar -C /usr/local/ -xzf go1.18.2.linux-$ARCH.tar.gz &&\
+        export PATH=$PATH:/usr/local/go/bin &&\
+        go version &&\
+
+        # Install LTS version of node.
+        cd /tmp && wget https://nodejs.org/dist/v16.15.0/node-v16.15.0-linux-$ARCH.tar.gz &&\
+        tar -xf node-v16.15.0-linux-$ARCH.tar.gz &&\
+        mv node-v16.15.0-linux-$ARCH/bin/* /usr/local/bin/ &&\
+        mv node-v16.15.0-linux-$ARCH/lib/node_modules/ /usr/local/lib/ &&\
+        cd - &&\
+        node -v && npm -v &&\
+
+        # Install yarn
+        npm install -g yarn &&\
+        yarn --version &&\
+
+        # Build UI
+        make ui/build &&\
+
+        # Run Go Tests
+        go test -buildvcs=false -v ./... &&\
+
+        # Build the code
+        go mod tidy && mkdir -p ./bin && go build -buildvcs=false -o bin/ ./cmd/parca"
+
+
+

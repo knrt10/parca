@@ -19,6 +19,7 @@ package config
 // Secret special type for storing secrets.
 type Secret string
 
+// this is test
 // MarshalYAML implements the yaml.Marshaler interface for Secrets.
 func (s Secret) MarshalYAML() (interface{}, error) {
 	if s != "" {
